@@ -1,0 +1,53 @@
+---
+- hosts: all
+
+  tasks:
+    # Enable TCP and UDP connection
+    - name: Configure rsyslog settings
+      replace:
+        dest: /etc/rsyslog.conf
+        regexp: '^#\s*{{ item.regex }}(.*)$'
+        replace: '{{ item.replace }}'
+      loop:
+        - regex: 'module\(load="imudp"\)'
+          replace: 'module(load="imudp")'
+        - regex: 'input\(type="imudp" port="514"\)'
+          replace: 'input(type="imudp" port="514")'
+        - regex: 'module\(load="imtcp"\)'
+          replace: 'module(load="imtcp")'
+        - regex: 'input\(type="imtcp" port="514"\)'
+          replace: 'input(type="imtcp" port="514")'
+      when: ansible_distribution_release != 'jessie'
+      notify: restart rsyslog
+      tags: rsyslog
+
+    - name: Configure rsyslog settings for jessie  
+      replace:
+        dest: /etc/rsyslog.conf
+        regexp: '^#\s*{{ item.regex }}(.*)$'
+        replace: '{{ item.replace }}'
+      loop:
+        - regex: '\$ModLoad imudp'
+          replace: '$ModLoad imudp'
+        - regex: '\$UDPServerRun 514'
+          replace: '$UDPServerRun 514'
+        - regex: '\$ModLoad imtcp'
+          replace: '$ModLoad imtcp'
+        - regex: '\$InputTCPServerRun 514'
+          replace: '$InputTCPServerRun 514'
+      when: ansible_distribution_release == 'jessie'
+      notify: restart rsyslog
+      tags: rsyslog
+
+    - name: Adding rsyslog filter to redirect Mikrotik messages
+      template:
+        src: "10-mikrotik.conf.j2"
+        dest: "/etc/rsyslog.d/10-mikrotik.conf"
+      notify: restart rsyslog
+      tags: mikrotik_logs
+
+    handlers:
+    - name: restart rsyslog 
+      service:
+        name: rsyslog 
+        state: restarted
